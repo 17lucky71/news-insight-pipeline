@@ -117,6 +117,11 @@ class Storage:
         item["payload"] = json.loads(item["payload"])
         return item
 
+    def reset_raw_processed(self) -> int:
+        cur = self.conn.execute("UPDATE raw_articles SET processed = 0")
+        self.conn.commit()
+        return cur.rowcount
+
     def mark_raw_processed(self, raw_id: int) -> None:
         self.conn.execute("UPDATE raw_articles SET processed = 1 WHERE id = ?", (raw_id,))
         self.conn.commit()

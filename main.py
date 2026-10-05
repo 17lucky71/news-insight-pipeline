@@ -37,6 +37,8 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("clean", help="raw 데이터 정제 → clean 저장")
     p.add_argument("--policy", choices=["skip", "upsert"],
                    help="중복 처리 정책 (기본: config.json 의 duplicate_policy)")
+    p.add_argument("--reprocess", action="store_true",
+                   help="이미 처리한 raw 까지 전부 다시 정제 (정제 규칙 변경 후 사용)")
 
     p = sub.add_parser("summarize", help="AI 뉴스 요약")
     target = p.add_mutually_exclusive_group(required=True)

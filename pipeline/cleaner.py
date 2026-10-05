@@ -37,6 +37,8 @@ DROP_LINE_PATTERNS = [
 ]
 # 문단 앞에 붙는 "(서울=연합뉴스) 홍길동 기자 =" 형태의 머리말
 BYLINE_PATTERN = re.compile(r"^\([^()]{1,20}=[^()]{1,10}\)\s*[^=\n]{0,40}?=\s*")
+# 문단 앞에 붙는 사진 출처 표기: "[연합뉴스TV 제공]", "[OO 제공. 재판매 및 DB 금지]"
+PHOTO_CREDIT_PATTERN = re.compile(r"^\[[^\[\]]*(?:제공|DB 금지|재판매)[^\[\]]*\]\s*")
 
 
 # ---------------- 정규화 함수 ----------------
@@ -62,6 +64,7 @@ def clean_body(body: str) -> str:
     for line in normalize_text(body).splitlines():
         if any(p.search(line) for p in DROP_LINE_PATTERNS):
             continue
+        line = PHOTO_CREDIT_PATTERN.sub("", line)
         line = BYLINE_PATTERN.sub("", line).strip()
         if line:
             kept.append(line)
@@ -148,6 +151,11 @@ def build_article(url: str, rss: dict | None, crawl: dict | None) -> tuple[dict 
 
 def run_clean(args, config: dict, storage) -> None:
     policy = args.policy or config.get("duplicate_policy", "skip")
+    if args.reprocess:
+        # 정제 규칙을 바꾼 뒤 raw 원본에서 다시 정제할 때 사용 (raw/clean 분리의 장점)
+        count = storage.reset_raw_processed()
+        policy = "upsert"
+        logger.info("재정제 모드: raw %d건을 다시 정제합니다 (중복 정책=upsert 로 기존 기사 갱신)", count)
     raws = storage.get_unprocessed_raw()
     if not raws:
         logger.info("정제할 새 raw 데이터가 없습니다. 먼저 fetch 를 실행하세요.")
