@@ -2,3 +2,5 @@ requests>=2.31
 python-dotenv>=1.0
 feedparser>=6.0
 beautifulsoup4>=4.12
+matplotlib>=3.8
+openpyxl>=3.1

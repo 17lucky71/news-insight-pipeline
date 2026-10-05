@@ -23,3 +23,4 @@ def setup_logging(level: str = "INFO", log_file: str = "logs/app.log") -> None:
 
     # 외부 라이브러리의 과도한 로그는 줄인다
     logging.getLogger("urllib3").setLevel(logging.WARNING)
+    logging.getLogger("matplotlib").setLevel(logging.WARNING)

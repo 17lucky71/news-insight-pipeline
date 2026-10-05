@@ -242,6 +242,9 @@ class Storage:
         return item
 
     # ---------- 통계 ----------
+    def count_raw_urls(self) -> int:
+        return self.conn.execute("SELECT COUNT(DISTINCT url) FROM raw_articles").fetchone()[0]
+
     def count(self, table: str) -> int:
         if table not in ("raw_articles", "articles", "analyses"):
             raise ValueError(f"알 수 없는 테이블: {table}")

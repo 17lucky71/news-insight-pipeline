@@ -3,7 +3,7 @@
 흐름: 프롬프트 구성 → HTTP POST → 응답 JSON 에서 텍스트 추출 → (실패 시) 재시도/대체 모델
 - API 키는 환경변수(.env)에서만 읽고, URL 이 아닌 헤더로 전송한다 (로그에 키가 남지 않도록).
 - 429(요청 한도 초과)·5xx·타임아웃은 잠시 기다렸다 재시도한다.
-- 404(모델 없음)나 429 중 '일일 한도 소진'은 설정의 대체 모델로 넘어간다.
+- 404(모델 없음), 429 중 '일일 한도 소진', 재시도 후에도 계속되는 5xx(서버 과부하)는 설정의 대체 모델로 넘어간다.
   (무료 요금제 한도는 모델별로 따로 적용되기 때문)
 """
 import json
@@ -72,6 +72,11 @@ class AIClient:
                 if not self.models:
                     raise AIError(f"사용 가능한 모델이 없습니다 (마지막 시도: {dead})")
                 logger.warning("모델 %s 를 찾을 수 없어 %s 로 전환합니다.", dead, self.model)
+            except _Overloaded as e:
+                dead = self.models.pop(0)
+                if not self.models:
+                    raise AIError(str(e))
+                logger.warning("모델 %s 가 계속 응답하지 않아(%s) %s 로 전환합니다.", dead, e, self.model)
             except _DailyQuota:
                 dead = self.models.pop(0)
                 if not self.models:
@@ -84,6 +89,7 @@ class AIClient:
         headers = {"x-goog-api-key": self.api_key, "Content-Type": "application/json"}
         attempts = self.max_retries + 1
         last_error = "알 수 없는 오류"
+        server_busy = False
 
         for attempt in range(1, attempts + 1):
             self._wait()
@@ -101,15 +107,20 @@ class AIClient:
                 last_error = f"HTTP {resp.status_code}: {_error_message(resp)}"
                 if resp.status_code == 429 and "PerDay" in resp.text:
                     raise _DailyQuota()  # 하루 한도는 기다려도 풀리지 않으므로 재시도하지 않음
+                server_busy = resp.status_code >= 500
                 if resp.status_code == 429 or resp.status_code >= 500:
                     wait = 10 * attempt  # 한도 초과/서버 오류는 점점 길게 기다린다
-                    logger.warning("AI 호출 실패 (%s) [%d/%d], %d초 후 재시도",
-                                   last_error, attempt, attempts, wait)
                     if attempt < attempts:
+                        logger.warning("AI 호출 실패 (%s) [%d/%d], %d초 후 재시도",
+                                       last_error, attempt, attempts, wait)
                         time.sleep(wait)
+                    else:
+                        logger.warning("AI 호출 실패 (%s) [%d/%d]", last_error, attempt, attempts)
                     continue
                 raise AIError(last_error)  # 400/401/403 등은 재시도해도 같은 결과
             logger.warning("AI 호출 실패 (%s) [%d/%d]", last_error, attempt, attempts)
+        if server_busy:  # 서버 과부하(5xx)는 모델별 문제일 수 있어 대체 모델을 시도
+            raise _Overloaded(last_error)
         raise AIError(last_error)
 
 
@@ -118,6 +129,10 @@ class _ModelNotFound(Exception):
 
 
 class _DailyQuota(Exception):
+    pass
+
+
+class _Overloaded(Exception):
     pass
 
 

@@ -16,7 +16,9 @@ from pipeline.analyzer import run_analyze
 from pipeline.cleaner import run_clean
 from pipeline.collector import run_fetch
 from pipeline.config import ConfigError, load_config
+from pipeline.exporter import run_export
 from pipeline.logger import setup_logging
+from pipeline.reporter import run_report
 from pipeline.storage import Storage
 from pipeline.summarizer import run_summarize
 
@@ -63,6 +65,8 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("report", help="시각화 + 리포트 생성")
     p.add_argument("--top", type=int, default=5, help="TOP N 개수")
     p.add_argument("--format", choices=["md", "txt"], default="md", help="저장 형식")
+    p.add_argument("--category", help="특정 카테고리만 리포트")
+    p.add_argument("--analysis-id", type=int, help="리포트에 넣을 분석 ID (기본: 최신)")
 
     p = sub.add_parser("export", help="데이터 내보내기")
     p.add_argument("--format", choices=["csv", "excel", "jsonl"], default="csv")
@@ -81,8 +85,8 @@ COMMANDS = {
     "clean": run_clean,
     "summarize": run_summarize,
     "analyze": run_analyze,
-    "report": not_implemented,
-    "export": not_implemented,
+    "report": run_report,
+    "export": run_export,
 }
 
 
