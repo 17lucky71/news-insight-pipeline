@@ -1,0 +1,28 @@
+{
+  "database": {
+    "path": "data/news.db"
+  },
+  "logging": {
+    "level": "INFO",
+    "file": "logs/app.log"
+  },
+  "http": {
+    "timeout": 10,
+    "max_retries": 2,
+    "request_delay": 1.0,
+    "user_agent": "Mozilla/5.0 (news-insight-pipeline; educational project)"
+  },
+  "sources": {},
+  "duplicate_policy": "skip",
+  "ai": {
+    "provider": "gemini",
+    "model": "gemini-2.5-flash",
+    "api_key_env": "GEMINI_API_KEY",
+    "max_input_chars": 4000
+  },
+  "output": {
+    "report_dir": "output/reports",
+    "chart_dir": "output/charts",
+    "export_dir": "output/exports"
+  }
+}
