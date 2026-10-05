@@ -1,7 +1,14 @@
 """뉴스 수집 모듈.
 
-- 방법 1 (RSS)  : 언론사 RSS 피드에서 기사 목록(제목, 링크, 날짜, 요약)을 가져온다.
-- 방법 2 (크롤링): RSS 로 얻은 기사 링크에 접속해 BeautifulSoup 으로 본문을 추출한다.
+- 방법 1 (공개 뉴스 API / RSS 중 RSS 피드 사용)
+    언론사가 공식 제공하는 RSS 피드(XML)에서 기사 목록(제목, 링크, 날짜, 요약)을 가져온다.
+    API 키 없이 누구나 같은 결과를 재현할 수 있어 RSS 를 선택했다.
+- 방법 2 (크롤링)
+    RSS 로 얻은 기사 링크에 접속해 BeautifulSoup 으로 본문을 추출한다.
+
+소스 종류는 config.json 의 sources.<이름>.type 으로 구분한다 (현재 "rss").
+뉴스 API 를 추가하려면 fetch_rss 와 같은 형식의 dict 목록을 돌려주는 수집 함수를 만들고
+SOURCE_FETCHERS 에 등록하면 된다.
 
 수집한 결과는 가공하지 않고 그대로 raw 저장소에 저장한다. (정제는 clean 단계 담당)
 """
@@ -136,6 +143,10 @@ def crawl_article(client: HttpClient, url: str, selectors: list[str]) -> dict:
     }
 
 
+# 소스 종류별 목록 수집 함수 (방법 1). 새로운 API 수집기는 여기에 등록한다.
+SOURCE_FETCHERS = {"rss": fetch_rss}
+
+
 # ---------------- fetch 명령 ----------------
 def run_fetch(args, config: dict, storage) -> None:
     sources = config.get("sources", {})
@@ -144,6 +155,11 @@ def run_fetch(args, config: dict, storage) -> None:
         logger.error("등록되지 않은 소스입니다: %s (사용 가능: %s)", name, ", ".join(sources) or "없음")
         return
     source = sources[name]
+    source_type = source.get("type", "rss")
+    fetch_list = SOURCE_FETCHERS.get(source_type)
+    if fetch_list is None:
+        logger.error("지원하지 않는 소스 종류입니다: %s (지원: %s)", source_type, ", ".join(SOURCE_FETCHERS))
+        return
 
     feeds = source.get("rss", {})
     if args.category:
@@ -153,15 +169,15 @@ def run_fetch(args, config: dict, storage) -> None:
         feeds = {args.category: feeds[args.category]}
 
     client = HttpClient(config.get("http", {}))
-    logger.info("뉴스 수집 시작: source=%s, category=%s, limit=%d",
-                name, args.category or "전체", args.limit)
+    logger.info("뉴스 수집 시작: source=%s(%s), category=%s, limit=%d",
+                name, source_type, args.category or "전체", args.limit)
 
     # 1) RSS 로 기사 목록 수집
     per_feed = math.ceil(args.limit / len(feeds))
     items = []
     for category, feed_url in feeds.items():
         try:
-            got = fetch_rss(client, feed_url, category, per_feed)
+            got = fetch_list(client, feed_url, category, per_feed)
             logger.info("RSS [%s] %d건 수신", category, len(got))
             items.extend(got)
         except FetchError as e:

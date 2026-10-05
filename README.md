@@ -28,7 +28,7 @@ flowchart LR
 
 | 명령 | 설명 | 주요 옵션 |
 |---|---|---|
-| `fetch` | RSS(방법1)로 기사 목록을, 크롤링(방법2)으로 본문을 수집해 raw 저장 | `--source` `--category` `--limit` `--no-crawl` |
+| `fetch` | **방법1: 공개 뉴스 API/RSS 중 RSS 피드**로 기사 목록을, **방법2: 크롤링**으로 본문을 수집해 raw 저장 | `--source` `--category` `--limit` `--no-crawl` |
 | `clean` | raw → clean 정제 (필수 필드 검증, 텍스트 정규화, 날짜 통일, 결측값, 중복) | `--policy skip\|upsert` `--reprocess` |
 | `summarize` | Gemini API 로 기사 요약 | `--all` `--id` `--unsummarized` `--force` `--limit` `--sentences` |
 | `analyze` | 기간·카테고리별 종합 분석 (트렌드, 키워드, 공통점, 차이점, 시사점) | `--date-from` `--date-to` `--category` `--show` `--list` |
@@ -99,7 +99,7 @@ GEMINI_API_KEY=발급받은_키
 
 | 항목 | 설명 | 기본값 |
 |---|---|---|
-| `default_source`, `sources` | 뉴스 소스, 카테고리별 RSS URL, 본문 CSS 선택자 | 연합뉴스 5개 카테고리 |
+| `default_source`, `sources` | 뉴스 소스, 소스 종류(`type`), 카테고리별 RSS URL, 본문 CSS 선택자 | 연합뉴스 RSS 5개 카테고리 |
 | `duplicate_policy` | 중복 기사 처리: `skip`(건너뜀) / `upsert`(덮어씀) | `skip` |
 | `http.timeout` / `max_retries` / `request_delay` | 요청 타임아웃(초), 재시도 횟수, 요청 간 지연(초) | 10 / 2 / 1.0 |
 | `ai.model` / `fallback_models` | 기본 모델과 대체 모델 목록 | `gemini-2.5-flash` → `flash-lite` → `flash-latest` |
@@ -261,6 +261,18 @@ raw 데이터는 재정제를 위해 삭제하지 않고 보관합니다. 운영
 
 이 프로젝트는 두 방식의 장점을 합쳐 **RSS 로 목록과 메타데이터**를 받고 **크롤링으로 본문**을 보강합니다.
 크롤링에 실패하면 RSS 요약을 본문 대신 사용합니다(결측값 처리).
+
+### 방법 1 로 RSS 를 선택한 이유
+
+과제의 방법 1 은 **"공개 뉴스 API 또는 RSS 피드 활용"** 이며, 이 프로젝트는 그중 **RSS 피드**를 사용합니다.
+
+- RSS 는 언론사가 공식 제공하는 **정해진 형식(XML)의 데이터 피드**로, HTTP 요청 → 구조화된 응답(제목·링크·날짜·요약 필드) → 파싱이라는
+  흐름이 뉴스 API 와 같습니다. 그래서 타임아웃·응답 실패 처리 등 API 수집에 필요한 오류 처리를 그대로 적용했습니다.
+- 대부분의 뉴스 API(네이버 검색 API 등)는 개발자 등록과 키 발급이 필요하지만, RSS 는 **키 없이** 누구나 같은 명령으로 결과를 재현할 수 있습니다.
+  평가·시연 환경에서 AI API 키 하나만 있으면 전체 파이프라인을 실행할 수 있도록 하기 위한 선택입니다.
+- 수집 소스의 종류는 `config.json` 의 `sources.<이름>.type` 으로 구분합니다(현재 `"rss"`).
+  뉴스 API 를 추가할 때는 `fetch_rss` 와 같은 형식의 목록을 돌려주는 수집 함수를 만들어 `collector.py` 의 `SOURCE_FETCHERS` 에 등록하면,
+  이후의 크롤링·정제·요약 단계는 수정 없이 그대로 동작합니다.
 
 ### 오류 처리
 

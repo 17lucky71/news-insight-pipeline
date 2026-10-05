@@ -16,6 +16,7 @@
   "sources": {
     "yonhap": {
       "name": "연합뉴스",
+      "type": "rss",
       "rss": {
         "경제": "https://www.yna.co.kr/rss/economy.xml",
         "산업": "https://www.yna.co.kr/rss/industry.xml",
