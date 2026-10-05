@@ -106,6 +106,17 @@ class Storage:
             result.append(item)
         return result
 
+    def get_latest_raw(self, url: str, method: str) -> dict | None:
+        row = self.conn.execute(
+            "SELECT * FROM raw_articles WHERE url = ? AND method = ? ORDER BY id DESC LIMIT 1",
+            (url, method),
+        ).fetchone()
+        if row is None:
+            return None
+        item = dict(row)
+        item["payload"] = json.loads(item["payload"])
+        return item
+
     def mark_raw_processed(self, raw_id: int) -> None:
         self.conn.execute("UPDATE raw_articles SET processed = 1 WHERE id = ?", (raw_id,))
         self.conn.commit()

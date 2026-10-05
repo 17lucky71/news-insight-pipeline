@@ -12,6 +12,7 @@ import argparse
 import logging
 import sys
 
+from pipeline.cleaner import run_clean
 from pipeline.collector import run_fetch
 from pipeline.config import ConfigError, load_config
 from pipeline.logger import setup_logging
@@ -33,7 +34,9 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--limit", type=int, default=20, help="수집 최대 건수")
     p.add_argument("--no-crawl", action="store_true", help="RSS 만 수집하고 본문 크롤링은 생략")
 
-    sub.add_parser("clean", help="raw 데이터 정제 → clean 저장")
+    p = sub.add_parser("clean", help="raw 데이터 정제 → clean 저장")
+    p.add_argument("--policy", choices=["skip", "upsert"],
+                   help="중복 처리 정책 (기본: config.json 의 duplicate_policy)")
 
     p = sub.add_parser("summarize", help="AI 뉴스 요약")
     target = p.add_mutually_exclusive_group(required=True)
@@ -66,7 +69,7 @@ def not_implemented(args, config, storage):
 
 COMMANDS = {
     "fetch": run_fetch,
-    "clean": not_implemented,
+    "clean": run_clean,
     "summarize": not_implemented,
     "analyze": not_implemented,
     "report": not_implemented,
