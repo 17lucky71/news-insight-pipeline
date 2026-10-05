@@ -157,10 +157,9 @@ class Storage:
 
         return "skipped"
 
-    def get_articles(self, category=None, date_from=None, date_to=None,
-                     status=None, keyword=None, ids=None,
-                     limit=None, offset=0) -> list[dict]:
-        """조건에 맞는 기사 목록. 날짜는 'YYYY-MM-DD' 형식."""
+    @staticmethod
+    def _where(category=None, date_from=None, date_to=None, status=None,
+               keyword=None, ids=None) -> tuple[str, list]:
         where, params = [], []
         if category:
             where.append("category = ?"); params.append(category)
@@ -171,18 +170,31 @@ class Storage:
         if status:
             where.append("status = ?"); params.append(status)
         if keyword:
-            where.append("(title LIKE ? OR content LIKE ?)")
-            params += [f"%{keyword}%", f"%{keyword}%"]
+            where.append("(title LIKE ? OR content LIKE ? OR summary LIKE ?)")
+            params += [f"%{keyword}%"] * 3
         if ids:
             where.append(f"id IN ({','.join('?' * len(ids))})"); params += list(ids)
+        return (" WHERE " + " AND ".join(where)) if where else "", params
 
-        sql = "SELECT * FROM articles"
-        if where:
-            sql += " WHERE " + " AND ".join(where)
-        sql += " ORDER BY published_at DESC, id DESC"
+    def get_articles(self, category=None, date_from=None, date_to=None,
+                     status=None, keyword=None, ids=None,
+                     limit=None, offset=0) -> list[dict]:
+        """조건에 맞는 기사 목록. 날짜는 'YYYY-MM-DD' 형식."""
+        where, params = self._where(category, date_from, date_to, status, keyword, ids)
+        sql = "SELECT * FROM articles" + where + " ORDER BY published_at DESC, id DESC"
         if limit:
             sql += " LIMIT ? OFFSET ?"; params += [limit, offset]
         return [dict(r) for r in self.conn.execute(sql, params).fetchall()]
+
+    def count_articles(self, **filters) -> int:
+        where, params = self._where(**filters)
+        return self.conn.execute("SELECT COUNT(*) FROM articles" + where, params).fetchone()[0]
+
+    def sentiment_counts(self) -> dict[str, int]:
+        rows = self.conn.execute(
+            "SELECT sentiment, COUNT(*) FROM articles WHERE sentiment IS NOT NULL GROUP BY sentiment"
+        ).fetchall()
+        return {r[0]: r[1] for r in rows}
 
     def get_article(self, article_id: int) -> dict | None:
         row = self.conn.execute("SELECT * FROM articles WHERE id = ?", (article_id,)).fetchone()

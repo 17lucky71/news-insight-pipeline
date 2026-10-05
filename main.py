@@ -13,12 +13,14 @@ import logging
 import sys
 
 from pipeline.analyzer import run_analyze
+from pipeline.browser import run_list, run_show
 from pipeline.cleaner import run_clean
 from pipeline.collector import run_fetch
 from pipeline.config import ConfigError, load_config
 from pipeline.exporter import run_export
 from pipeline.logger import setup_logging
 from pipeline.reporter import run_report
+from pipeline.sentiment import run_sentiment
 from pipeline.storage import Storage
 from pipeline.summarizer import run_summarize
 
@@ -73,6 +75,28 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--status", choices=["cleaned", "summarized"], help="상태 필터")
     p.add_argument("--category", help="카테고리 필터")
 
+    # ---------- 보너스 ----------
+    p = sub.add_parser("list", help="[보너스] 뉴스 목록 조회 (필터 + 페이지네이션)")
+    p.add_argument("--category", help="카테고리")
+    p.add_argument("--date", help="특정 날짜 YYYY-MM-DD")
+    p.add_argument("--date-from", help="시작일 YYYY-MM-DD")
+    p.add_argument("--date-to", help="종료일 YYYY-MM-DD")
+    p.add_argument("--keyword", help="제목/본문/요약 키워드 검색")
+    p.add_argument("--status", choices=["cleaned", "summarized"], help="상태")
+    p.add_argument("--page", type=int, default=1, help="페이지 번호 (기본 1)")
+    p.add_argument("--size", type=int, default=10, help="페이지당 건수 (기본 10)")
+
+    p = sub.add_parser("show", help="[보너스] 뉴스 상세 조회")
+    p.add_argument("id", type=int, help="기사 ID")
+    p.add_argument("--full", action="store_true", help="본문 전체 보기")
+
+    p = sub.add_parser("sentiment", help="[보너스] AI 감성 분석 (긍정/부정/중립)")
+    target = p.add_mutually_exclusive_group()
+    target.add_argument("--all", action="store_true", help="이미 분석한 기사도 다시 분석")
+    target.add_argument("--id", type=int, nargs="+", help="특정 뉴스 ID")
+    p.add_argument("--limit", type=int, help="최대 처리 건수")
+    p.add_argument("--batch", type=int, default=10, help="한 번의 요청에 묶을 기사 수 (기본 10)")
+
     return parser
 
 
@@ -87,6 +111,9 @@ COMMANDS = {
     "analyze": run_analyze,
     "report": run_report,
     "export": run_export,
+    "list": run_list,
+    "show": run_show,
+    "sentiment": run_sentiment,
 }
 
 
