@@ -42,4 +42,10 @@ def get_api_key(config: dict) -> str:
         raise ConfigError(
             f"환경변수 {env_name} 가 없습니다. .env.example 을 참고해 .env 파일을 만들어 주세요."
         )
+    key = key.strip()
+    if not key.isascii() or len(key) < 20:
+        raise ConfigError(
+            f"{env_name} 값이 올바른 API 키 형식이 아닙니다 (예시 문구가 그대로 있거나 일부만 복사됨). "
+            ".env 파일을 확인해 주세요."
+        )
     return key

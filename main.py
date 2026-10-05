@@ -17,6 +17,7 @@ from pipeline.collector import run_fetch
 from pipeline.config import ConfigError, load_config
 from pipeline.logger import setup_logging
 from pipeline.storage import Storage
+from pipeline.summarizer import run_summarize
 
 logger = logging.getLogger("main")
 
@@ -47,6 +48,7 @@ def build_parser() -> argparse.ArgumentParser:
     target.add_argument("--unsummarized", action="store_true", help="요약 안 된 뉴스만")
     p.add_argument("--force", action="store_true", help="이미 요약된 뉴스도 다시 요약")
     p.add_argument("--limit", type=int, help="최대 처리 건수")
+    p.add_argument("--sentences", type=int, default=3, help="요약 문장 수 (기본 3)")
 
     p = sub.add_parser("analyze", help="AI 인사이트 분석")
     p.add_argument("--date-from", help="시작일 YYYY-MM-DD")
@@ -72,7 +74,7 @@ def not_implemented(args, config, storage):
 COMMANDS = {
     "fetch": run_fetch,
     "clean": run_clean,
-    "summarize": not_implemented,
+    "summarize": run_summarize,
     "analyze": not_implemented,
     "report": not_implemented,
     "export": not_implemented,

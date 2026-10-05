@@ -35,8 +35,14 @@
   "ai": {
     "provider": "gemini",
     "model": "gemini-2.5-flash",
+    "fallback_models": [
+      "gemini-flash-latest"
+    ],
     "api_key_env": "GEMINI_API_KEY",
-    "max_input_chars": 4000
+    "max_input_chars": 4000,
+    "timeout": 60,
+    "max_retries": 2,
+    "request_delay": 4.0
   },
   "output": {
     "report_dir": "output/reports",
