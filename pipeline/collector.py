@@ -200,4 +200,9 @@ def run_fetch(args, config: dict, storage) -> None:
 
     logger.info("수집 완료: RSS %d건 / 크롤링 %d건 성공, %d건 실패, %d건 기존 수집분 스킵",
                 rss_ok, crawl_ok, crawl_fail, crawl_skip)
+    attempted = crawl_ok + crawl_fail
+    if attempted >= 3 and crawl_fail / attempted >= 0.5:
+        # 대부분 실패했다면 개별 기사 문제가 아니라 사이트 구조(HTML) 변경일 가능성이 높다
+        logger.warning("크롤링 실패율이 %.0f%% 입니다. 사이트 구조가 바뀌었을 수 있으니 "
+                       "config.json 의 article_selectors 를 확인하세요.", crawl_fail / attempted * 100)
     logger.info("raw 저장소에 저장 완료 (누적 raw %d건)", storage.count("raw_articles"))

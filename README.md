@@ -20,7 +20,7 @@ flowchart LR
 ## 목차
 1. [기능](#1-기능) · 2. [폴더 구조](#2-폴더-구조) · 3. [설치](#3-설치) · 4. [설정](#4-설정) ·
 5. [사용법](#5-사용법) · 6. [데이터 저장 구조](#6-데이터-저장-구조) · 7. [설계 설명](#7-설계-설명) ·
-8. [정기 실행](#8-정기-실행-스케줄링-보너스) · 9. [트러블슈팅](#9-트러블슈팅) · 10. [실행 결과](#10-실행-결과)
+8. [정기 실행](#8-정기-실행-스케줄링-보너스) · 9. [트러블슈팅](#9-트러블슈팅) · 10. [실행 결과](#10-실행-결과) · 11. [한계와 개선 방향](#11-한계와-개선-방향)
 
 ---
 
@@ -160,6 +160,17 @@ $ python main.py summarize --unsummarized --limit 3
 ...
 ```
 
+### 예상 소요 시간
+
+| 명령 | 기준 | 비고 |
+|---|---|---|
+| `fetch` | 기사 1건당 약 1~2초 | RSS 요청 + 본문 요청, 요청 간 1초 지연 (`http.request_delay`) |
+| `clean` | 100건 기준 1초 이내 | 로컬 처리만 수행 |
+| `summarize` | 기사 1건당 약 4~8초 | 무료 한도 대응 4초 간격 (`ai.request_delay`) + 응답 시간 |
+| `analyze` | 요청 1회, 약 10~30초 | 기사 수십 건을 한 번에 분석 |
+| `sentiment` | 10건당 요청 1회 | `--batch` 로 묶음 크기 조절 |
+| `report` / `export` | 수 초 이내 | 로컬 처리만 수행 |
+
 ## 6. 데이터 저장 구조
 
 SQLite(`data/news.db`) 영구 저장소를 사용합니다.
@@ -170,7 +181,76 @@ SQLite(`data/news.db`) 영구 저장소를 사용합니다.
 | `articles` | 정제된 기사 + AI 결과 | `url`(UNIQUE), `title`, `content`, `category`, `published_at`, `summary`, `sentiment`, `status` |
 | `analyses` | AI 인사이트 분석 결과 | `date_from`, `date_to`, `category`, `article_count`, `result`(JSON), `model` |
 
+### 수집 데이터 예시 (raw_articles.payload)
+
+같은 기사 URL 에 대해 RSS 와 크롤링 결과가 각각 저장됩니다. (기사 내용은 예시용으로 줄여서 표기)
+
+```jsonc
+// method = "rss" : RSS 피드 항목에서 얻는 메타데이터
+{
+  "title": "○○부, 지역관광 경진대회 개최",
+  "link": "https://www.yna.co.kr/view/AKR2026100500000000",
+  "description": "○○부는 지역관광 혁신 아이디어 경진대회를...",
+  "published": "Mon, 05 Oct 2026 03:41:22 +0000",   // RFC 822 형식
+  "author": "홍길동",
+  "category": "경제",
+  "feed_url": "https://www.yna.co.kr/rss/economy.xml"
+}
+
+// method = "crawl" : 기사 페이지를 BeautifulSoup 으로 파싱한 결과
+{
+  "url": "https://www.yna.co.kr/view/AKR2026100500000000",
+  "title": "○○부, 지역관광 경진대회 개최",
+  "body": "[OO 제공. 재판매 및 DB 금지]\n(서울=연합뉴스) 홍길동 기자 = ○○부는 ...\nhong@yna.co.kr\n제보는 카카오톡 okjebo <저작권자(c) 연합뉴스, 무단 전재-재배포...>",
+  "published": "2026-10-05T12:41:22+09:00",          // ISO 8601 형식
+  "description": "...",
+  "category": "경제"
+}
+```
+
+### 정제 전후 비교 (clean)
+
+| 항목 | raw (정제 전) | clean (정제 후) |
+|---|---|---|
+| 본문 첫 줄 | `[OO 제공. 재판매 및 DB 금지]` 사진 출처 | 제거 |
+| 본문 머리말 | `(서울=연합뉴스) 홍길동 기자 = ○○부는 ...` | `○○부는 ...` |
+| 본문 끝 | 기자 이메일, 제보 안내, 저작권 문구, 송고 시각 | 제거 |
+| 발행일 | `Mon, 05 Oct 2026 03:41:22 +0000` / `2026-10-05T12:41:22+09:00` | `2026-10-05 12:41:22` (KST 통일) |
+| 수집 방법 | `rss`, `crawl` 2건 | `rss+crawl` 1건으로 병합 |
+
+```
+$ python main.py clean
+[INFO] 정제 시작: raw 10건 → 기사 5건, 중복 정책=skip
+[INFO] 정제 완료: 신규 5건, 갱신 0건, 중복 스킵 0건, 검증 실패 0건
+
+$ python main.py clean            # 같은 raw 를 다시 실행하면
+[INFO] 정제할 새 raw 데이터가 없습니다. 먼저 fetch 를 실행하세요.
+
+$ python main.py clean --reprocess  # 정제 규칙 수정 후 원본에서 재정제
+[INFO] 재정제 모드: raw 10건을 다시 정제합니다 (중복 정책=upsert 로 기존 기사 갱신)
+[INFO] 정제 완료: 신규 0건, 갱신 5건, 중복 스킵 0건, 검증 실패 0건
+```
+
+raw 데이터는 재정제를 위해 삭제하지 않고 보관합니다. 운영 환경이라면 일정 기간(예: 90일)이 지난
+처리 완료(processed=1) raw 를 별도 파일로 백업한 뒤 정리하는 보관 정책을 둘 수 있습니다.
+
 ## 7. 설계 설명
+
+### 모듈별 입력과 출력
+
+| 모듈 | 입력 | 출력 |
+|---|---|---|
+| `collector` | config 의 RSS URL, 기사 URL | `raw_articles` 행 (rss / crawl) |
+| `cleaner` | 처리 안 된 `raw_articles` | `articles` 행 (status=cleaned) |
+| `summarizer` | `articles` (status=cleaned) | `articles.summary` (status=summarized) |
+| `analyzer` | 조건에 맞는 `articles` | `analyses` 행 (JSON 결과) |
+| `sentiment` | `articles` | `articles.sentiment` |
+| `visualizer` / `reporter` | `articles`, 최신 `analyses` | PNG 차트, MD/TXT 리포트 |
+| `exporter` | 조건에 맞는 `articles` | CSV / XLSX / JSONL 파일 |
+| `ai_client` | 프롬프트 | AI 응답 텍스트 (재시도·모델 전환 포함) |
+| `storage` | 모든 모듈의 읽기/쓰기 요청 | SQLite (`data/news.db`) |
+
+모든 단계가 DB 를 통해 데이터를 주고받기 때문에 각 명령을 독립적으로, 원하는 시점에 다시 실행할 수 있습니다.
 
 ### API/RSS 방식 vs 크롤링 방식
 
@@ -192,6 +272,25 @@ SQLite(`data/news.db`) 영구 저장소를 사용합니다.
 | AI 분당 한도(429) | 대기 후 재시도 |
 | AI 일일 한도(429 PerDay), 모델 없음(404), 지속적 과부하(503) | `fallback_models` 의 다음 모델로 자동 전환, 모두 소진되면 중단하고 이어서 실행 안내 |
 | API 키 누락·형식 오류 | 호출 전에 검증해 명확한 메시지로 안내 |
+| 크롤링 실패율 50% 이상 | 사이트 구조 변경을 의심하고 선택자 확인을 안내하는 경고 출력 |
+
+개발 중 실제로 발생한 로그 예시입니다.
+
+```
+# 분당 한도 초과 → 대기 후 재시도
+[WARNING] AI 호출 실패 (HTTP 429: Resource exhausted ...) [1/3], 10초 후 재시도
+
+# 일일 한도 소진 → 재시도 없이 대체 모델로 전환
+[WARNING] 모델 gemini-2.5-flash 의 일일 한도가 소진되어 gemini-2.5-flash-lite 로 전환합니다.
+
+# 서버 과부하가 계속됨 → 재시도 후 대체 모델로 전환
+[WARNING] AI 호출 실패 (HTTP 503: This model is currently experiencing high demand ...) [3/3]
+[WARNING] 모델 gemini-2.5-flash 가 계속 응답하지 않아(...) gemini-2.5-flash-lite 로 전환합니다.
+
+# 모든 모델 소진 → 즉시 중단하고 이어서 실행할 방법 안내
+[ERROR] 모든 모델의 일일 무료 한도를 다 썼습니다 (마지막 시도: gemini-flash-latest)
+[WARNING] 남은 5건은 한도가 초기화된 뒤 'summarize --unsummarized' 로 이어서 요약하세요.
+```
 
 ### raw / clean 분리 이유
 
@@ -220,6 +319,13 @@ SQL/`Counter` 로 카테고리별·일자별 기사 수를 집계하고 matplotl
 
 리포트 구성: **품질 지표 5개**(정제 통과율, 본문 크롤링 성공률, AI 요약 완료율, 평균 본문 길이, 요약 압축률) /
 **TOP N 2종**(카테고리별 기사 수, 제목 키워드 빈도) / **AI 인사이트** / **차트**.
+
+### 동적 페이지 대응
+
+이 프로젝트의 수집 대상(연합뉴스 기사 페이지)은 본문이 HTML 에 바로 들어 있어 `requests` + BeautifulSoup 으로 충분합니다.
+JavaScript 가 실행된 뒤에야 본문이 그려지는 사이트라면 HTML 에 본문이 없으므로,
+Selenium 이나 Playwright 같은 **헤드리스 브라우저**로 페이지를 실제로 렌더링한 뒤 파싱해야 합니다.
+다만 브라우저 실행은 느리고 자원을 많이 쓰므로, 먼저 사이트가 내부적으로 호출하는 JSON API 가 있는지 확인하는 것이 좋습니다.
 
 ### 크롤링 윤리 및 요청 제한
 
@@ -280,3 +386,11 @@ crontab -e
 - 감성 분포 (보너스) ![감성 분포](docs/sentiment.png)
 
 결과 샘플은 `python main.py report` 후 `python scripts/update_docs.py` 로 갱신합니다.
+
+## 11. 한계와 개선 방향
+
+- **중복 판단**: 현재는 URL 기준입니다. 같은 사건을 다룬 다른 URL 기사까지 묶으려면 제목·본문 유사도(예: TF-IDF 코사인 유사도) 기반 중복 판단을 추가할 수 있습니다.
+- **모니터링**: 크롤링 실패율·요약 실패율을 로그로 남기고 있으며, 운영 환경이라면 임계값을 넘을 때 메일·슬랙으로 알리도록 확장할 수 있습니다.
+- **프롬프트 관리**: 프롬프트는 각 모듈 상단 상수로 관리합니다. 프롬프트·temperature 를 바꿀 때는 같은 기사 묶음으로 결과를 비교해 기록하는 방식으로 개선 효과를 검증할 수 있습니다.
+- **테스트**: 개발 중에는 로컬 테스트 서버(가짜 RSS·기사 페이지, 가짜 Gemini 응답)로 정상·오류 시나리오를 확인했습니다. 이를 pytest 단위 테스트로 정리하는 것이 다음 개선 과제입니다.
+
