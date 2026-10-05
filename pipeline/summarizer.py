@@ -6,7 +6,7 @@
 """
 import logging
 
-from pipeline.ai_client import AIClient, AIError
+from pipeline.ai_client import AIClient, AIError, AIQuotaError
 from pipeline.config import ConfigError
 
 logger = logging.getLogger(__name__)
@@ -72,6 +72,12 @@ def run_summarize(args, config: dict, storage) -> None:
     for i, article in enumerate(targets, 1):
         try:
             summary = summarize_article(client, article, max_chars, args.sentences)
+        except AIQuotaError as e:
+            logger.error("%s", e)
+            logger.warning("남은 %d건은 한도가 초기화된 뒤 'summarize --unsummarized' 로 이어서 요약하세요.",
+                           len(targets) - i + 1)
+            fail += len(targets) - i + 1
+            break
         except AIError as e:
             fail += 1
             logger.error("[%d/%d] ID=%d 요약 실패, 건너뜀: %s", i, len(targets), article["id"], e)

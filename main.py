@@ -12,6 +12,7 @@ import argparse
 import logging
 import sys
 
+from pipeline.analyzer import run_analyze
 from pipeline.cleaner import run_clean
 from pipeline.collector import run_fetch
 from pipeline.config import ConfigError, load_config
@@ -54,6 +55,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--date-from", help="시작일 YYYY-MM-DD")
     p.add_argument("--date-to", help="종료일 YYYY-MM-DD")
     p.add_argument("--category", help="카테고리")
+    p.add_argument("--max-articles", type=int, default=50, help="분석에 사용할 최대 기사 수 (기본 50)")
+    p.add_argument("--show", type=int, nargs="?", const=0, metavar="ID",
+                   help="저장된 분석 결과 조회 (ID 생략 시 최신)")
+    p.add_argument("--list", action="store_true", help="저장된 분석 목록 보기")
 
     p = sub.add_parser("report", help="시각화 + 리포트 생성")
     p.add_argument("--top", type=int, default=5, help="TOP N 개수")
@@ -75,7 +80,7 @@ COMMANDS = {
     "fetch": run_fetch,
     "clean": run_clean,
     "summarize": run_summarize,
-    "analyze": not_implemented,
+    "analyze": run_analyze,
     "report": not_implemented,
     "export": not_implemented,
 }

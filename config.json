@@ -36,13 +36,15 @@
     "provider": "gemini",
     "model": "gemini-2.5-flash",
     "fallback_models": [
+      "gemini-2.5-flash-lite",
       "gemini-flash-latest"
     ],
     "api_key_env": "GEMINI_API_KEY",
     "max_input_chars": 4000,
     "timeout": 60,
     "max_retries": 2,
-    "request_delay": 4.0
+    "request_delay": 4.0,
+    "max_analysis_chars": 30000
   },
   "output": {
     "report_dir": "output/reports",

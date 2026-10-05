@@ -3,7 +3,8 @@
 흐름: 프롬프트 구성 → HTTP POST → 응답 JSON 에서 텍스트 추출 → (실패 시) 재시도/대체 모델
 - API 키는 환경변수(.env)에서만 읽고, URL 이 아닌 헤더로 전송한다 (로그에 키가 남지 않도록).
 - 429(요청 한도 초과)·5xx·타임아웃은 잠시 기다렸다 재시도한다.
-- 404(모델 없음)는 설정의 대체 모델로 넘어간다.
+- 404(모델 없음)나 429 중 '일일 한도 소진'은 설정의 대체 모델로 넘어간다.
+  (무료 요금제 한도는 모델별로 따로 적용되기 때문)
 """
 import json
 import logging
@@ -21,6 +22,10 @@ DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 
 class AIError(Exception):
     """AI 호출 실패 (재시도 후에도 실패)."""
+
+
+class AIQuotaError(AIError):
+    """모든 모델의 일일 사용 한도 소진 (오늘은 더 호출해도 실패)."""
 
 
 class AIClient:
@@ -67,6 +72,11 @@ class AIClient:
                 if not self.models:
                     raise AIError(f"사용 가능한 모델이 없습니다 (마지막 시도: {dead})")
                 logger.warning("모델 %s 를 찾을 수 없어 %s 로 전환합니다.", dead, self.model)
+            except _DailyQuota:
+                dead = self.models.pop(0)
+                if not self.models:
+                    raise AIQuotaError(f"모든 모델의 일일 무료 한도를 다 썼습니다 (마지막 시도: {dead})")
+                logger.warning("모델 %s 의 일일 한도가 소진되어 %s 로 전환합니다.", dead, self.model)
         raise AIError("사용 가능한 모델이 없습니다")
 
     def _call(self, model: str, body: dict) -> str:
@@ -89,6 +99,8 @@ class AIClient:
                 if resp.status_code == 404:
                     raise _ModelNotFound()
                 last_error = f"HTTP {resp.status_code}: {_error_message(resp)}"
+                if resp.status_code == 429 and "PerDay" in resp.text:
+                    raise _DailyQuota()  # 하루 한도는 기다려도 풀리지 않으므로 재시도하지 않음
                 if resp.status_code == 429 or resp.status_code >= 500:
                     wait = 10 * attempt  # 한도 초과/서버 오류는 점점 길게 기다린다
                     logger.warning("AI 호출 실패 (%s) [%d/%d], %d초 후 재시도",
@@ -102,6 +114,10 @@ class AIClient:
 
 
 class _ModelNotFound(Exception):
+    pass
+
+
+class _DailyQuota(Exception):
     pass
 
 

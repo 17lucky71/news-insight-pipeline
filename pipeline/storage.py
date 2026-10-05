@@ -216,10 +216,25 @@ class Storage:
         self.conn.commit()
         return cur.lastrowid
 
+    def get_analysis(self, analysis_id: int) -> dict | None:
+        row = self.conn.execute("SELECT * FROM analyses WHERE id = ?", (analysis_id,)).fetchone()
+        return self._analysis_row(row)
+
+    def list_analyses(self) -> list[dict]:
+        rows = self.conn.execute(
+            "SELECT id, date_from, date_to, category, article_count, model, created_at "
+            "FROM analyses ORDER BY id DESC"
+        ).fetchall()
+        return [dict(r) for r in rows]
+
     def get_latest_analysis(self) -> dict | None:
         row = self.conn.execute(
             "SELECT * FROM analyses ORDER BY id DESC LIMIT 1"
         ).fetchone()
+        return self._analysis_row(row)
+
+    @staticmethod
+    def _analysis_row(row) -> dict | None:
         if row is None:
             return None
         item = dict(row)
