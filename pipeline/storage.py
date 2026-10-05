@@ -89,6 +89,12 @@ class Storage:
         self.conn.commit()
         return cur.lastrowid
 
+    def raw_exists(self, url: str, method: str) -> bool:
+        row = self.conn.execute(
+            "SELECT 1 FROM raw_articles WHERE url = ? AND method = ? LIMIT 1", (url, method)
+        ).fetchone()
+        return row is not None
+
     def get_unprocessed_raw(self) -> list[dict]:
         rows = self.conn.execute(
             "SELECT * FROM raw_articles WHERE processed = 0 ORDER BY id"

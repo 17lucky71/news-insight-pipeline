@@ -12,7 +12,25 @@
     "request_delay": 1.0,
     "user_agent": "Mozilla/5.0 (news-insight-pipeline; educational project)"
   },
-  "sources": {},
+  "default_source": "yonhap",
+  "sources": {
+    "yonhap": {
+      "name": "연합뉴스",
+      "rss": {
+        "경제": "https://www.yna.co.kr/rss/economy.xml",
+        "산업": "https://www.yna.co.kr/rss/industry.xml",
+        "사회": "https://www.yna.co.kr/rss/society.xml",
+        "국제": "https://www.yna.co.kr/rss/international.xml",
+        "문화": "https://www.yna.co.kr/rss/culture.xml"
+      },
+      "article_selectors": [
+        "div.story-news.article p",
+        "article.story-news p",
+        "div#articleWrap p",
+        "article p"
+      ]
+    }
+  },
   "duplicate_policy": "skip",
   "ai": {
     "provider": "gemini",

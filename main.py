@@ -12,6 +12,7 @@ import argparse
 import logging
 import sys
 
+from pipeline.collector import run_fetch
 from pipeline.config import ConfigError, load_config
 from pipeline.logger import setup_logging
 from pipeline.storage import Storage
@@ -27,9 +28,10 @@ def build_parser() -> argparse.ArgumentParser:
     sub = parser.add_subparsers(dest="command", required=True)
 
     p = sub.add_parser("fetch", help="뉴스 수집 (RSS + 크롤링) → raw 저장")
-    p.add_argument("--source", help="설정에 등록된 소스 이름")
+    p.add_argument("--source", help="설정에 등록된 소스 이름 (기본: default_source)")
     p.add_argument("--category", help="수집할 카테고리")
     p.add_argument("--limit", type=int, default=20, help="수집 최대 건수")
+    p.add_argument("--no-crawl", action="store_true", help="RSS 만 수집하고 본문 크롤링은 생략")
 
     sub.add_parser("clean", help="raw 데이터 정제 → clean 저장")
 
@@ -63,7 +65,7 @@ def not_implemented(args, config, storage):
 
 
 COMMANDS = {
-    "fetch": not_implemented,
+    "fetch": run_fetch,
     "clean": not_implemented,
     "summarize": not_implemented,
     "analyze": not_implemented,
